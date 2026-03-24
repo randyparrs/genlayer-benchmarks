@@ -1,27 +1,36 @@
-# contracts/benchmarks/bm01_deterministic.py
-from genlayer import IContract, public
+# { "Depends": "py-genlayer:test" }
+# BM-01: Deterministic Storage Write
+# Baseline — no LLM, no web fetch.
+# Measures pure consensus overhead on simple state changes.
 
-class BM01Deterministic(IContract):
-    """
-    Benchmark 01: Deterministic storage write.
-    Baseline — no LLM, no web fetch.
-    Measures pure consensus overhead on simple state changes.
-    """
+from genlayer import *
+
+
+class BM01Deterministic(gl.Contract):
+    counter: u256
+    last_key: str
+    last_value: str
 
     def __init__(self):
-        self.counter: int = 0
-        self.data: dict[str, int] = {}
+        self.counter = u256(0)
+        self.last_key = ""
+        self.last_value = ""
 
-    @public
-    def increment(self) -> int:
-        self.counter += 1
+    @gl.public.write
+    def increment(self) -> u256:
+        self.counter = u256(int(self.counter) + 1)
         return self.counter
 
-    @public
-    def store_value(self, key: str, value: int) -> str:
-        self.data[key] = value
+    @gl.public.write
+    def store_value(self, key: str, value: str) -> str:
+        self.last_key = key
+        self.last_value = value
         return f"Stored {key}={value}"
 
-    @public
-    def get_counter(self) -> int:
+    @gl.public.view
+    def get_counter(self) -> u256:
         return self.counter
+
+    @gl.public.view
+    def get_last(self) -> str:
+        return f"{self.last_key}={self.last_value}"
