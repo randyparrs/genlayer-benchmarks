@@ -100,17 +100,17 @@ LLM calls are the dominant factor in execution time. Web fetch adds consistent l
 
 ## Analysis
 
-### Finding 1 — Equivalence Principle Tolerance is Critical
+### Finding 1   Equivalence Principle Tolerance is Critical
 
 The most important design decision in Intelligent Contracts is the tolerance rule in the validator function. Too strict means validators disagree and the transaction goes undetermined. Too loose means security is compromised.
 
 Recommended tolerances based on the benchmarks are exact match for simple classification, plus or minus two points for numeric scores, plus or minus ten to fifteen points for confidence values, and plus or minus five hundred characters for web content length.
 
-### Finding 2 — Full Intelligent Contracts Achieve Reliable Consensus
+### Finding 2  Full Intelligent Contracts Achieve Reliable Consensus
 
 Even the most complex benchmark combining web fetch and LLM achieved 100 percent consensus when proper equivalence rules were applied. This validates GenLayer Optimistic Democracy for production use.
 
-### Finding 3 — Prompt Design Affects Consensus
+### Finding 3   Prompt Design Affects Consensus
 
 Clear unambiguous prompts with explicit output format instructions such as JSON significantly improve consensus rates. Adding sort_keys=True when returning JSON ensures validators can compare outputs reliably.
 
