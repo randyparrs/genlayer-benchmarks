@@ -76,7 +76,7 @@ class MyContract(gl.Contract):
 
 The Equivalence Principle is how GenLayer achieves consensus on non-deterministic operations. Always use gl.vm.run_nondet_unsafe with a leader_fn and validator_fn.
 
-### Pattern 1 — Exact Match
+### Pattern 1  Exact Match
 
 Use when output is a fixed set of values such as YES/NO or POSITIVE/NEGATIVE.
 
@@ -94,7 +94,7 @@ def validator_fn(leader_result) -> bool:
 result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 ```
 
-### Pattern 2 — Numeric Tolerance
+### Pattern 2  Numeric Tolerance
 
 Use when output is numeric and may vary slightly between validators.
 
@@ -108,7 +108,7 @@ def validator_fn(leader_result) -> bool:
     return abs(leader_data["score"] - validator_data["score"]) <= 10
 ```
 
-### Pattern 3 — Field Matching
+### Pattern 3  Field Matching
 
 Use when output has multiple fields but only key fields matter for consensus.
 
@@ -122,7 +122,7 @@ def validator_fn(leader_result) -> bool:
     return leader_data["verdict"] == validator_data["verdict"]
 ```
 
-### Pattern 4 — Web Fetch and LLM
+### Pattern 4  Web Fetch and LLM
 
 The most common production pattern — fetch data then analyze.
 
