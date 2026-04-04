@@ -114,7 +114,7 @@ Even the most complex benchmark combining web fetch and LLM achieved 100 percent
 
 Clear unambiguous prompts with explicit output format instructions such as JSON significantly improve consensus rates. Adding sort_keys=True when returning JSON ensures validators can compare outputs reliably.
 
-### Finding 4 — Validator Scaling
+### Finding 4  Validator Scaling
 
 Validators execute in parallel so adding more validators increases security without linear latency cost. The bottleneck is the slowest validator, not the sum of all validators.
 
