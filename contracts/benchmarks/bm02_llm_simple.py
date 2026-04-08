@@ -2,7 +2,7 @@
 # BM-02: Simple LLM Call
 # Short prompt, deterministic expected output.
 # Measures baseline LLM latency and consensus time.
-# Equivalence Principle: output must match exactly ✅
+# Equivalence Principle: output must match exactly
 
 from genlayer import *
 
