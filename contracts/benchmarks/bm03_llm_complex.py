@@ -2,7 +2,7 @@
 # BM-03: Complex LLM Call
 # Long prompt, JSON response required.
 # Measures how prompt complexity affects latency and consensus reliability.
-# Equivalence Principle: same verdict + confidence ±10 points ✅
+# Equivalence Principle: same verdict + confidence ±10 points 
 
 import json
 from genlayer import *
