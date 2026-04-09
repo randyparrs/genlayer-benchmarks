@@ -1,8 +1,8 @@
 # { "Depends": "py-genlayer:test" }
 
 import json
-from genlayer import *
 from dataclasses import dataclass
+from genlayer import *
 
 
 @allow_storage
@@ -28,8 +28,8 @@ class GenLayerBenchmark(gl.Contract):
     bm05_runs: u256
     total_consensus: u256
 
-    def __init__(self, owner_address: str):
-        self.owner = Address(owner_address)
+    def __init__(self, owner_address: Address):
+        self.owner = owner_address
         self.result_count = u256(0)
         self.bm01_runs = u256(0)
         self.bm02_runs = u256(0)
@@ -42,7 +42,7 @@ class GenLayerBenchmark(gl.Contract):
     def get_benchmark_summary(self) -> str:
         total = int(self.result_count)
         consensus = int(self.total_consensus)
-        rate = int((consensus / total) * 100) if total > 0 else 0
+        rate = (consensus * 100) // total if total > 0 else 0
         return (
             f"GenLayer Benchmark Suite\n"
             f"Total Runs: {total}\n"
@@ -287,3 +287,6 @@ No extra text."""
         self.bm05_runs = u256(int(self.bm05_runs) + 1)
         self.total_consensus = u256(int(self.total_consensus) + 1)
         return raw
+
+    
+         
