@@ -2,7 +2,7 @@
 # BM-05: Full Intelligent Contract
 # Web fetch + LLM call in a single transaction.
 # Most representative of real production usage.
-# Equivalence Principle: same verdict + confidence ±15 points ✅
+# Equivalence Principle: same verdict + confidence ±15 points
 
 import json
 from genlayer import *
