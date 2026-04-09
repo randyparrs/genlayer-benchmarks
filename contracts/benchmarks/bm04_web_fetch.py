@@ -2,7 +2,7 @@
 # BM-04: Web Fetch Without LLM
 # Measures native web access latency across validators.
 # Each validator independently fetches the URL.
-# Equivalence Principle: content length within ±500 chars ✅
+# Equivalence Principle: content length within ±500 chars 
 
 import json
 from genlayer import *
