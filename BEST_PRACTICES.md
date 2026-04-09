@@ -1,4 +1,4 @@
-# GenLayer Intelligent Contract /  Best Practices Guide
+# GenLayer Intelligent Contract Best Practices Guide
 
 A practical guide for developers building Intelligent Contracts on GenLayer. Based on empirical testing across multiple contract types achieving 100% consensus rate.
 
@@ -19,7 +19,7 @@ A practical guide for developers building Intelligent Contracts on GenLayer. Bas
 
 ## 1. Contract Structure
 
-### Correct  Minimal Contract Template
+### Correct Minimal Contract Template
 
 ```python
 # { "Depends": "py-genlayer:test" }
@@ -29,12 +29,12 @@ from genlayer import *
 
 class MyContract(gl.Contract):
 
-    owner: str
+    owner: Address
     counter: u256
     items: DynArray[str]
 
     def __init__(self, owner_address: str):
-        self.owner = owner_address
+        self.owner = Address(owner_address)
         self.counter = u256(0)
 
     @gl.public.view
@@ -47,10 +47,12 @@ class MyContract(gl.Contract):
         return f"Done: {input}"
 ```
 
+The constructor always receives str and converts internally with Address(owner_address). This is required for GenLayer Studio to parse the contract schema correctly while keeping the internal type as Address for the genvm-lint check.
+
 ### Common Mistakes
 
 ```python
-# WRONG — old syntax, does not work in GenLayer Studio
+# WRONG: old syntax, does not work in GenLayer Studio
 from genlayer import IContract, public
 
 class MyContract(IContract):
@@ -59,7 +61,7 @@ class MyContract(IContract):
         result = call_llm("prompt")
         data = get_webpage(url, mode="text")
 
-# CORRECT — current syntax
+# CORRECT: current syntax
 from genlayer import *
 
 class MyContract(gl.Contract):
@@ -70,13 +72,33 @@ class MyContract(gl.Contract):
         data = response.body.decode("utf-8")
 ```
 
+### Address Type Pattern
+
+The correct pattern for contracts that store an owner address is to declare Address as the state type but accept str in the constructor. This satisfies both GenLayer Studio and the genvm-lint validator.
+
+```python
+# WRONG for Studio: causes "Could not load contract schema"
+class MyContract(gl.Contract):
+    owner: Address
+    def __init__(self, owner_address: Address):
+        self.owner = owner_address
+
+# CORRECT: works in Studio and passes genvm-lint
+class MyContract(gl.Contract):
+    owner: Address
+    def __init__(self, owner_address: str):
+        self.owner = Address(owner_address)
+```
+
+The same pattern applies to any method that receives an address as a parameter. Accept str and convert with Address() at the boundary.
+
 ---
 
 ## 2. Equivalence Principle Patterns
 
 The Equivalence Principle is how GenLayer achieves consensus on non-deterministic operations. Always use gl.vm.run_nondet_unsafe with a leader_fn and validator_fn.
 
-### Pattern 1  Exact Match
+### Pattern 1: Exact Match
 
 Use when output is a fixed set of values such as YES/NO or POSITIVE/NEGATIVE.
 
@@ -94,7 +116,7 @@ def validator_fn(leader_result) -> bool:
 result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 ```
 
-### Pattern 2  Numeric Tolerance
+### Pattern 2: Numeric Tolerance
 
 Use when output is numeric and may vary slightly between validators.
 
@@ -108,7 +130,7 @@ def validator_fn(leader_result) -> bool:
     return abs(leader_data["score"] - validator_data["score"]) <= 10
 ```
 
-### Pattern 3  Field Matching
+### Pattern 3: Field Matching
 
 Use when output has multiple fields but only key fields matter for consensus.
 
@@ -122,9 +144,9 @@ def validator_fn(leader_result) -> bool:
     return leader_data["verdict"] == validator_data["verdict"]
 ```
 
-### Pattern 4  Web Fetch and LLM
+### Pattern 4: Web Fetch and LLM
 
-The most common production pattern — fetch data then analyze.
+The most common production pattern combining web fetch with LLM analysis.
 
 ```python
 def leader_fn():
@@ -237,13 +259,21 @@ Good sources include Wikipedia, official news APIs, government sites, and CoinGe
 
 ### Handle Fetch Errors Gracefully
 
+Some APIs return non-JSON responses or unexpected formats. Always wrap parsing in a try-except and provide a safe fallback.
+
 ```python
 def leader_fn():
     try:
         response = gl.nondet.web.get(url)
-        web_data = response.body.decode("utf-8")[:2000]
+        raw_body = response.body.decode("utf-8")
+        try:
+            data = json.loads(raw_body)
+        except Exception:
+            data = None
+        if not data or not isinstance(data, dict):
+            return json.dumps({"result": "unavailable"}, sort_keys=True)
     except Exception:
-        web_data = "No data available."
+        return json.dumps({"result": "unavailable"}, sort_keys=True)
 ```
 
 ### Use Wikipedia for Factual Queries
@@ -308,7 +338,7 @@ class MyContract(gl.Contract):
 
 ## 6. Common Errors and Fixes
 
-Could not load contract schema is caused by complex constructor args or old syntax. Fix by using primitive types such as str, u256, and bool in the constructor.
+Could not load contract schema is caused by complex constructor args, old syntax, or using Address directly as a constructor parameter type. Fix by using primitive types such as str, u256, and bool in the constructor, and convert to Address internally with Address(owner_address).
 
 FINALIZED ERROR is caused by an assert failing or wrong state. Fix by checking function preconditions and state before calling.
 
@@ -316,7 +346,11 @@ Validator disagreement is caused by tolerance being too strict. Fix by increasin
 
 JSON parse error is caused by the LLM returning markdown. Fix by adding .replace("```json","").replace("```","") before parsing.
 
+AttributeError NoneType has no attribute get is caused by an external API returning a non-JSON response or an empty body. Fix by wrapping json.loads in a try-except, checking if the result is a valid dict before accessing fields, and returning safe default values when data is unavailable.
+
 gl.eq_principle_prompt_comparative not found means you are using the old API. Use gl.vm.run_nondet_unsafe instead.
+
+gl.eq_principle.strict_eq not found in Studio means the testnet version does not support this method. Use gl.vm.run_nondet_unsafe with a custom validator_fn instead.
 
 call_llm not found means you are using the old API. Use gl.nondet.exec_prompt instead.
 
@@ -356,6 +390,8 @@ The class inherits gl.Contract and not IContract
 
 The constructor uses primitive types only such as str, u256, and bool
 
+Address state variables are declared as Address but the constructor receives str and converts with Address(value)
+
 State variables are declared at class level with type annotations
 
 Read functions use @gl.public.view
@@ -365,6 +401,8 @@ Write functions use @gl.public.write
 LLM calls use gl.nondet.exec_prompt
 
 Web calls use gl.nondet.web.get
+
+Web fetch responses are wrapped in try-except before JSON parsing
 
 Non-deterministic logic is wrapped in gl.vm.run_nondet_unsafe
 
@@ -386,8 +424,13 @@ GenLayer Docs: https://docs.genlayer.com
 
 Equivalence Principle: https://docs.genlayer.com/developers/intelligent-contracts/equivalence-principle
 
+Address Type: https://docs.genlayer.com/developers/intelligent-contracts/types/address
+
 GenLayer Studio: https://studio.genlayer.com
 
 Collection Types: https://docs.genlayer.com/developers/intelligent-contracts/types/collections
 
 Discord: https://discord.gg/8Jm4v89VAu
+
+
+    
