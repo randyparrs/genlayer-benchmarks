@@ -19,7 +19,7 @@ A practical guide for developers building Intelligent Contracts on GenLayer. Bas
 
 ## 1. Contract Structure
 
-### Correct — Minimal Contract Template
+### Correct  Minimal Contract Template
 
 ```python
 # { "Depends": "py-genlayer:test" }
