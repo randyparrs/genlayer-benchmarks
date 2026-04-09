@@ -3,7 +3,7 @@
 # Same operation run to measure how performance changes
 # as the number of validators increases.
 # Run this contract with different Studio validator configurations.
-# Equivalence Principle: scores within ±2 points ✅
+# Equivalence Principle: scores within ±2 points
 
 import json
 from genlayer import *
@@ -37,7 +37,7 @@ No extra text."""
                 validator_raw = leader_fn()
                 leader_data = json.loads(leader_result.calldata)
                 validator_data = json.loads(validator_raw)
-                # Scores within ±2 points are equivalent ✅
+                # Scores within ±2 points are equivalent
                 return abs(leader_data["score"] - validator_data["score"]) <= 2
             except Exception:
                 return False
