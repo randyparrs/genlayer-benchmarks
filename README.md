@@ -124,6 +124,8 @@ Validators execute in parallel so adding more validators increases security with
 
 Go to GenLayer Studio at studio.genlayer.com and create a new file for each benchmark contract. Paste the contract code from the contracts/benchmarks folder. Set execution mode to Normal Full Consensus. Deploy with your Studio address as owner where applicable. Call the benchmark functions and observe consensus in the Logs panel.
 
+Note: the contract in this repository uses the Address type in the constructor as required by genvm-lint. When deploying in GenLayer Studio use a version that receives str in the constructor and converts internally with Address(owner_address) since Studio requires primitive types to parse the contract schema correctly.
+
 ### Example for BM-05 Full Intelligent
 
 Function: evaluate_claim
