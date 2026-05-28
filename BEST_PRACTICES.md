@@ -14,6 +14,11 @@ A practical guide for developers building Intelligent Contracts on GenLayer. Bas
 6. Common Errors and Fixes
 7. Tolerance Reference Table
 8. Quick Checklist
+9. Payable Functions and gl.message
+10. Access Control Patterns
+11. TreeMap Storage
+12. Testing Workflow
+13. LEADER_TIMEOUT and Transaction Retries
 
 ---
 
@@ -415,6 +420,252 @@ Web content is truncated to the first 2000 characters
 LLM output values are validated and clamped
 
 Execution mode is set to Normal Full Consensus in Studio
+
+Payable functions assert gl.message.value >= fee before executing
+
+Owner-only functions assert gl.message.sender_address == self.owner
+
+TreeMap is used for key-value lookups when the key set can grow
+
+genvm-lint check passes before every deploy
+
+Contract tested in Direct mode before Full Consensus mode
+
+LEADER_TIMEOUT is handled by resubmitting, not by modifying the contract
+
+---
+
+## 9. Payable Functions and gl.message
+
+### Accepting GEN Token Payments
+
+Use `gl.message.value` to read the amount of GEN sent with a transaction. Always assert the minimum fee before executing logic.
+
+```python
+@gl.public.write
+def scan_token(self, token_address: str, chain: str) -> None:
+    assert gl.message.value >= self.fee, "Insufficient GEN fee"
+    self.treasury = u256(int(self.treasury) + int(gl.message.value))
+    # proceed with logic
+```
+
+### The gl.message Object
+
+`gl.message` is available in any write function and exposes two fields.
+
+`gl.message.sender_address` returns the Address of the caller. Use this to identify who is calling the function and to enforce ownership checks.
+
+`gl.message.value` returns the amount of GEN (in wei) sent with the transaction as a u256. One GEN equals 10^18 wei.
+
+```python
+@gl.public.write
+def deposit(self) -> None:
+    caller = gl.message.sender_address       # Address
+    amount = gl.message.value                # u256, in wei
+    assert amount > u256(0), "Send GEN to deposit"
+    self.balances[str(caller)] = u256(
+        int(self.balances.get(str(caller), u256(0))) + int(amount)
+    )
+```
+
+### Fee Constants in Wei
+
+Define fee constants at the top of the contract to avoid magic numbers.
+
+```python
+FEE_SCAN    = u256(500_000_000_000_000_000)   # 0.5 GEN
+FEE_WALLET  = u256(1_000_000_000_000_000_000) # 1.0 GEN
+FEE_RADAR   = u256(300_000_000_000_000_000)   # 0.3 GEN
+```
+
+### Withdrawal Pattern
+
+Owner-only function to withdraw accumulated fees from the treasury.
+
+```python
+@gl.public.write
+def withdraw_treasury(self, amount_wei: u256) -> None:
+    assert gl.message.sender_address == self.owner, "Not owner"
+    assert amount_wei <= self.treasury, "Insufficient treasury"
+    self.treasury = u256(int(self.treasury) - int(amount_wei))
+    # In GenLayer the transfer is recorded in the transaction messages field
+```
+
+---
+
+## 10. Access Control Patterns
+
+### Owner-Only Functions
+
+Always assert the caller is the owner at the top of restricted functions. There are no modifiers in GenLayer contracts, so repeat the check explicitly.
+
+```python
+class MyContract(gl.Contract):
+    owner: Address
+
+    def __init__(self, owner_address: str):
+        self.owner = Address(owner_address)
+
+    @gl.public.write
+    def admin_action(self, value: str) -> None:
+        assert gl.message.sender_address == self.owner, "Not owner"
+        # restricted logic here
+
+    @gl.public.write
+    def transfer_ownership(self, new_owner: str) -> None:
+        assert gl.message.sender_address == self.owner, "Not owner"
+        self.owner = Address(new_owner)
+```
+
+### Checking Ownership in View Functions
+
+View functions cannot assert or revert. Return a boolean flag instead.
+
+```python
+@gl.public.view
+def is_owner(self, addr: str) -> bool:
+    return Address(addr) == self.owner
+```
+
+### Multi-Role Pattern
+
+For contracts with more than one privileged role, store roles as a DynArray of addresses.
+
+```python
+class MyContract(gl.Contract):
+    owner:      Address
+    operators:  DynArray[str]
+
+    @gl.public.write
+    def add_operator(self, addr: str) -> None:
+        assert gl.message.sender_address == self.owner, "Not owner"
+        if addr not in self.operators:
+            self.operators.append(addr)
+
+    def _is_operator(self, addr: Address) -> bool:
+        return str(addr) in self.operators
+```
+
+---
+
+## 11. TreeMap Storage
+
+### TreeMap vs DynArray
+
+Use `TreeMap` when you need fast key-value lookups. Use `DynArray[str]` only when you need ordered iteration or the key set is small. TreeMap is more idiomatic and does not require manual prefix parsing.
+
+```python
+from genlayer import *
+
+class MyContract(gl.Contract):
+    # Key-value: wallet address -> score
+    scores: TreeMap[str, u256]
+
+    @gl.public.write
+    def set_score(self, wallet: str, score: u256) -> None:
+        self.scores[wallet] = score
+
+    @gl.public.view
+    def get_score(self, wallet: str) -> u256:
+        return self.scores.get(wallet, u256(0))
+```
+
+### Nested Data Pattern
+
+For two-level key-value structures, store serialized JSON as the value rather than nesting TreeMaps.
+
+```python
+class MyContract(gl.Contract):
+    # market_id -> serialized JSON metadata
+    markets: TreeMap[str, str]
+
+    def _get_market(self, market_id: str) -> dict:
+        raw = self.markets.get(market_id, "{}")
+        return json.loads(raw)
+
+    def _set_market(self, market_id: str, data: dict) -> None:
+        self.markets[market_id] = json.dumps(data, sort_keys=True)
+```
+
+### When to Use DynArray vs TreeMap
+
+Use DynArray when you need to iterate over all entries, maintain insertion order, or store a flat list of items. Use TreeMap when you need fast lookups by key, the key set can grow large, or you are building a registry or mapping pattern.
+
+---
+
+## 12. Testing Workflow
+
+### Step 1: Lint Before Every Deploy
+
+Run genvm-lint after every change and before deploying. Fix all errors before proceeding.
+
+```bash
+genvm-lint check contracts/my_contract.py
+```
+
+A clean output looks like this.
+
+```
+✓ Lint passed (3 checks)
+✓ Validation passed
+  Contract: MyContract
+  Methods: 8 (5 view, 3 write)
+```
+
+### Step 2: Test in Direct Mode First
+
+Direct mode runs only the leader node without validators. It is fast and useful for catching logic errors and JSON parsing issues before running full consensus.
+
+In GenLayer Studio, set the execution mode to **Direct** and call your write functions. Check that return values and state changes are correct.
+
+### Step 3: Test in Full Consensus Mode
+
+Full consensus runs all validators and applies the Equivalence Principle. Set execution mode to **Normal Full Consensus** in Studio.
+
+Run each write function and verify that the transaction finalizes without validator disagreement. If validators disagree, increase the tolerance in your `validator_fn`.
+
+### Step 4: Verify State with View Functions
+
+After each write transaction finalizes, call the corresponding view functions to confirm state was updated correctly.
+
+```python
+# After calling set_score(wallet, score), verify with:
+get_score(wallet)  # should return the value you set
+```
+
+### Step 5: Test Edge Cases
+
+Always test with missing data, empty strings, and invalid addresses before deploying to a shared environment.
+
+---
+
+## 13. LEADER_TIMEOUT and Transaction Retries
+
+### What LEADER_TIMEOUT Means
+
+LEADER_TIMEOUT occurs when the designated leader node does not respond within the expected window. This is a network-level event, not a bug in your contract. When it happens, GenLayer automatically promotes the next validator to leader and retries the round.
+
+From the user's perspective the transaction may appear to hang or show a LEADER_TIMEOUT status before eventually finalizing. This is normal behavior on Studionet.
+
+### What to Do
+
+Do not modify your contract when you see LEADER_TIMEOUT. Simply resubmit the transaction. The most common cause is temporary validator unavailability on the test network.
+
+```
+Transaction status: LEADER_TIMEOUT
+Action: Resubmit the same transaction
+Result: Usually finalizes on the second or third attempt
+```
+
+### Distinguishing LEADER_TIMEOUT from a Real Error
+
+LEADER_TIMEOUT never produces a state change. If the transaction showed LEADER_TIMEOUT and then you resubmit and it finalizes successfully, the contract is working correctly.
+
+A real error produces a FINALIZED status with an error message in the transaction detail. This means an assert failed or the contract threw an exception.
+
+### Reducing LEADER_TIMEOUT Frequency
+
+Long-running `leader_fn` functions increase the chance of timeout. Keep web fetches to one or two URLs per transaction, truncate web content to 2000 characters, and keep prompts concise. The faster the leader completes, the less likely validators are to time out.
 
 ---
 
